@@ -1,0 +1,140 @@
+int main()
+{
+	GPIO_InitTypeDef gpio;
+
+	RCC_AHBPeriphClockCmd( RCC_AHBPeriph_GPIOA, ENABLE );
+	RCC_AHBPeriphClockCmd( RCC_AHBPeriph_GPIOE, ENABLE );
+
+	//---------------------------------------------------//
+	// Port A - pushbutton
+	GPIO_StructInit( &gpio );
+	gpio.GPIO_Mode = GPIO_Mode_IN;
+	gpio.GPIO_Pin  = BUTTON;
+	GPIO_Init( GPIOA, &gpio );
+
+	//---------------------------------------------------//
+	// Port E - LEDS
+	GPIO_StructInit( &gpio );
+	gpio.GPIO_Mode = GPIO_Mode_OUT;
+	gpio.GPIO_Pin  = LEDS;
+	GPIO_Init( GPIOE, &gpio );
+
+	//---------------------------------------------------//
+	while(1)
+	{
+		// The Schmitt trigger filters input signal.
+		// We have no problems with contact bouncing.
+		//------------------------------------------
+		// Polling pushbutton state
+		if( GPIO_ReadInputDataBit(GPIOA, BUTTON) )
+		{
+			GPIO_SetBits( GPIOE, LEDS );
+		}
+		else
+		{
+			GPIO_ResetBits( GPIOE, LEDS );
+		}
+	}
+}
+
+
+This is for leds working on the push of a button. We could modify the button part to something with which we want to trigger the leds. //SomethingUsefulFoundDontWorry
+
+
+This site is given good info on each pin and how to initiate it and all the libraries reqd to be initialised --- https://www.badprog.com/electronics-stm32-gpio-overview-with-the-stm32f3-discovery-board
+
+
+
+en.DM00055171.pdf --- I think you showed me this pdf sometime and it contains a circuit diagram which will help us with our connection from the bb to the mcu. Hardware help.
+
+
+https://www.youtube.com/watch?v=RrkbMUyrVUw - this series will help a lot. watched it till 5th part.
+
+#include "stm32f3xx_hal.h"
+
+void SystemClock_Config(void);
+
+/**
+ * LED_4  = GPIO_E_PIN_8   (top left   - Blue)
+ * LED_3  = GPIO_E_PIN_9   (top        - Red)
+ * LED_5  = GPIO_E_PIN_10  (top right  - Orange)
+ * LED_7  = GPIO_E_PIN_11  (right      - Green)
+ *
+ * LED_9  = GPIO_E_PIN_12  (bottom right  - Blue)
+ * LED_10 = GPIO_E_PIN_13  (bottom  - Red)
+ * LED_8  = GPIO_E_PIN_14  (bottom left  - Orange)
+ * LED_6  = GPIO_E_PIN_15  (left  - Green)
+ *
+ */
+#define MY_PINS GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11
+
+/**
+ * GPIO
+ *
+ * The Alternate element allows to set the GPIO as an alternate function,
+ * for example GPIO_AF10_TIM17 or GPIO_AF4_I2C1 to set this GPIO as a timer pin
+ * or an I2C pin.
+ * In this configuration, the mode has to be set as GPIO_MODE_AF_xx.
+ * But in this example, we won't change anything, because we just want to blink
+ * some LEDs.
+ */
+void badprog_gpio() {
+
+  GPIO_InitTypeDef GPIO_InitStruct;
+
+  __HAL_RCC_GPIOE_CLK_ENABLE()
+  ;
+  GPIO_InitStruct.Alternate = 0; //
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pin = MY_PINS;              // set all pins needed
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+}
+
+/**
+ * Main, the famous one!
+ */
+int main(void) {
+  HAL_Init();
+  SystemClock_Config();
+  badprog_gpio();
+  while (1) {
+    GPIOE->ODR ^= MY_PINS;    // let's blink
+    HAL_Delay(1000);
+  }
+}
+
+/** System Clock Configuration
+ */
+void SystemClock_Config(void) {
+
+  RCC_OscInitTypeDef RCC_OscInitStruct;
+  RCC_ClkInitTypeDef RCC_ClkInitStruct;
+
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = 16;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL12;
+  HAL_RCC_OscConfig(&RCC_OscInitStruct);
+
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+      | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1);
+
+  HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq() / 1000);
+
+  HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
+
+  /* SysTick_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+}   
+--- also a relatable code. We have to tweak it a bit.
+
